@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Panel de Producción — Rollos</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  :root {
+    --bg:         #0f1117;
+    --surface:    #161a24;
+    --border:     #222840;
+    --green:      #18c95d;
+    --green-dim:  #071a0f;
+    --red:        #e53935;
+    --red-dim:    #1a0707;
+    --yellow:     #f5a623;
+    --yellow-dim: #1a1007;
+    --text:       #eef0f8;
+    --muted:      #4a5270;
+    --accent:     #3d7fff;
+    --cyan:       #00c8d4;
+    --cyan-dim:   #031518;
+  }
+
+  html, body {
+    width:100%; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family:'Barlow',sans-serif;
+    overflow:hidden;
+  }
+
+  /* ══ ROOT LAYOUT ══ */
+  .root {
+    display:grid;
+    grid-template-rows: 56px auto 1fr 44px;
+    grid-template-columns: 1fr 1fr;
+    height:100vh;
+    padding:10px 12px;
+    gap:8px;
+  }
+
+  /* ══ HEADER ══ */
+  header {
+    grid-column: 1 / -1;
+    display:flex; align-items:center; justify-content:space-between;
+    border-bottom:2px solid var(--border);
+    padding-bottom:8px;
+  }
+
+  .header-left { display:flex; align-items:baseline; gap:14px; }
+
+  .brand {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:26px; font-weight:900; letter-spacing:2px; text-transform:uppercase;
+  }
+
+  .tag {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:12px; font-weight:700; letter-spacing:4px; text-transform:uppercase;
+    color:var(--muted); border:1px solid var(--border); padding:2px 10px; border-radius:2px;
+  }
+
+  .header-right { display:flex; align-items:center; gap:24px; }
+
+  /* stats en header */
+  .header-stats {
+    display:flex; align-items:center; gap:16px;
+    border-left:1px solid var(--border); padding-left:24px;
+  }
+  .hstat { display:flex; align-items:baseline; gap:5px; }
+  .hstat-lbl { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .hstat-val { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:800; }
+  .hstat-val.g { color:var(--green); }
+  .hstat-val.c { color:var(--cyan); }
+  .hstat-val.y { color:var(--yellow); }
+  .hstat-val.r { color:var(--red); }
+
+  .clock {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:34px; font-weight:700; letter-spacing:2px; line-height:1; text-align:right;
+  }
+  .date { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); text-align:right; }
+
+  .live-badge {
+    display:flex; align-items:center; gap:7px;
+    font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); font-weight:600;
+  }
+  .live-dot {
+    width:8px; height:8px; border-radius:50%;
+    background:var(--green); box-shadow:0 0 8px var(--green);
+    animation:blink 1.4s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+  /* ══ REBOBINADORAS — fila 2, ancho total ══ */
+  .left-col {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display:flex; flex-direction:column; gap:6px;
+  }
+
+  /* ══ MESAS + STATS — fila 3, columna izquierda ══ */
+  .bottom-row {
+    grid-column: 1;
+    grid-row: 3;
+    display:flex; flex-direction:column; gap:6px;
+    min-height:0;
+  }
+
+  /* ══ PLAN — fila 3, columna derecha ══ */
+  .right-col {
+    grid-column: 2;
+    grid-row: 3;
+    display:flex; flex-direction:column; gap:8px;
+    min-height:0;
+  }
+
+  /* ══ SECTION ══ */
+  .section {
+    display:flex; flex-direction:column; gap:5px;
+  }
+
+  .section-label {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:13px; font-weight:700; letter-spacing:4px;
+    text-transform:uppercase; color:var(--muted);
+    display:flex; align-items:center; gap:8px;
+    flex-shrink:0;
+  }
+  .section-label::after {
+    content:''; flex:1; height:1px; background:var(--border);
+  }
+
+  /* ══ ROW CARD ══ */
+  .row-card {
+    display:grid;
+    grid-template-columns: 70px 1fr 160px 140px 100px;
+    align-items:center;
+    gap:0;
+    border-radius:4px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    overflow:hidden;
+    position:relative;
+    height:52px;
+    flex-shrink:0;
+    transition:border-color .3s, background .3s;
+  }
+
+  /* left accent bar */
+  .row-card::before {
+    content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background:var(--border);
+    transition:background .3s;
+  }
+
+  .row-card.active   { border-color:var(--green);  background:var(--green-dim); }
+  .row-card.paused   { border-color:var(--yellow); background:var(--yellow-dim); }
+  .row-card.inactive { border-color:var(--red);    background:var(--red-dim); }
+  .row-card.mesa-active { border-color:var(--cyan); background:var(--cyan-dim); }
+
+  .row-card.active::before      { background:var(--green); }
+  .row-card.paused::before      { background:var(--yellow); }
+  .row-card.inactive::before    { background:var(--red); }
+  .row-card.mesa-active::before { background:var(--cyan); }
+
+  /* ── cell: machine id ── */
+  .cell-id {
+    padding:0 8px 0 12px;
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:14px; font-weight:700; letter-spacing:2px;
+    text-transform:uppercase; color:var(--muted);
+    white-space:nowrap;
+  }
+
+  /* ── cell: product name ── */
+  .cell-product {
+    padding:0 12px;
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:22px; font-weight:800; line-height:1.1;
+    text-transform:uppercase; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    border-left:1px solid rgba(34,40,64,.6);
+  }
+  .row-card.inactive .cell-product { color:rgba(238,240,248,.25); font-size:18px; }
+
+  /* ── cell: operario + hora ── */
+  .cell-operator {
+    padding:0 12px;
+    border-left:1px solid rgba(34,40,64,.6);
+    display:flex; flex-direction:column; justify-content:center; gap:1px;
+  }
+  .op-name {
+    font-size:13px; font-weight:600; color:rgba(238,240,248,.6);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .op-time {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:12px; color:var(--muted); letter-spacing:1px;
+  }
+  .stop-reason {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:14px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+  }
+  .row-card.inactive .stop-reason { color:var(--red); opacity:.8; }
+  .row-card.paused   .stop-reason { color:var(--yellow); opacity:.9; }
+
+  /* ── cell: produccion ── */
+  .cell-metric {
+    padding:0 12px;
+    border-left:1px solid rgba(34,40,64,.6);
+    display:flex; flex-direction:column; align-items:flex-end; justify-content:center;
+  }
+  .metric-num {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:26px; font-weight:900; line-height:1; letter-spacing:1px;
+  }
+  .row-card.active      .metric-num { color:var(--green); }
+  .row-card.mesa-active .metric-num { color:var(--cyan); }
+  .row-card.paused      .metric-num { color:var(--yellow); }
+  .row-card.inactive    .metric-num { color:rgba(238,240,248,.15); }
+  .metric-label {
+    font-size:9px; letter-spacing:2px; text-transform:uppercase;
+    color:var(--muted); font-weight:600; text-align:right;
+  }
+
+  /* ── cell: rendimiento ── */
+  .cell-rend {
+    padding:0 12px;
+    border-left:1px solid rgba(34,40,64,.6);
+    display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:2px;
+  }
+  .rend-badge {
+    display:inline-flex; align-items:center;
+    padding:3px 10px; border-radius:3px;
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:18px; font-weight:800; letter-spacing:1px;
+  }
+  .rend-badge.high { background:rgba(24,201,93,.15);  color:var(--green); }
+  .rend-badge.mid  { background:rgba(245,166,35,.15); color:var(--yellow); }
+  .rend-badge.low  { background:rgba(229,57,53,.15);  color:var(--red); }
+  .rend-badge.none { background:rgba(255,255,255,.04); color:var(--muted); }
+  .rend-label {
+    font-size:9px; letter-spacing:2px; text-transform:uppercase;
+    color:var(--muted); font-weight:600; text-align:right;
+  }
+
+  /* ══ RIGHT COLUMN ══ */
+  .right-col {
+    display:flex; flex-direction:column; gap:8px;
+    min-height:0;
+  }
+
+  .panel-box {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:5px;
+    padding:14px 14px 12px;
+    flex:1; overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+
+  .panel-title {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:13px; font-weight:700; letter-spacing:4px;
+    text-transform:uppercase; color:var(--muted);
+    margin-bottom:10px; padding-bottom:8px;
+    border-bottom:1px solid var(--border);
+    flex-shrink:0;
+  }
+
+  .plan-list { display:flex; flex-direction:column; flex:1; overflow:hidden; }
+
+  .plan-row {
+    display:flex; flex-direction:column;
+    padding:9px 0;
+    border-bottom:1px solid rgba(34,40,64,.8);
+    flex-shrink:0;
+  }
+  .plan-row:last-child { border-bottom:none; }
+
+  .plan-product {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:20px; font-weight:800; text-transform:uppercase;
+    line-height:1.15; color:var(--text);
+  }
+
+  .plan-fecha {
+    font-size:11px; font-weight:600; letter-spacing:1px;
+    color:var(--accent); text-transform:uppercase; margin-top:2px;
+  }
+
+  /* stats box — compacto */
+  .stats-box {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:5px;
+    padding:10px 14px;
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:6px 12px;
+    flex-shrink:0;
+  }
+
+  .stats-title {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:11px; font-weight:700; letter-spacing:4px;
+    text-transform:uppercase; color:var(--muted);
+    grid-column: 1 / -1;
+    padding-bottom:6px;
+    border-bottom:1px solid var(--border);
+  }
+
+  .stat-item { display:flex; align-items:baseline; justify-content:space-between; gap:4px; }
+  .stat-lbl { font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .stat-val {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:20px; font-weight:800;
+  }
+  .stat-val.g { color:var(--green); }
+  .stat-val.c { color:var(--cyan); }
+  .stat-val.y { color:var(--yellow); }
+  .stat-val.r { color:var(--red); }
+  .stat-val.m { color:var(--muted); font-size:16px; }
+
+  /* stats en header */
+  .header-stats {
+    display:flex; align-items:center; gap:16px;
+    border-right:1px solid var(--border); padding-right:20px;
+  }
+  .hstat { display:flex; align-items:baseline; gap:5px; }
+  .hstat-lbl {
+    font-size:10px; letter-spacing:2px; text-transform:uppercase;
+    color:var(--muted); font-weight:600;
+  }
+  .hstat-val {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:22px; font-weight:800;
+  }
+  .hstat-val.g { color:var(--green); }
+  .hstat-val.c { color:var(--cyan); }
+  .hstat-val.y { color:var(--yellow); }
+  .hstat-val.r { color:var(--red); }
+
+  /* ══ FOOTER ══ */
+  footer {
+    grid-column:1 / -1;
+    display:flex; align-items:center; justify-content:space-between;
+    border-top:1px solid var(--border); padding-top:8px;
+  }
+
+  .footer-stat { display:flex; align-items:baseline; gap:6px; }
+  .footer-stat-lbl { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .footer-stat-val { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:800; color:var(--green); }
+  .footer-right { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); font-weight:600; }
+
+  @keyframes numflash { 0%{opacity:.3} 100%{opacity:1} }
+  .flash { animation:numflash .35s ease-out; }
+</style>
+</head>
+<body>
+<div class="root">
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <div class="brand" id="companyName">Alpac SRL</div>
+      <div class="tag">Rollos</div>
+    </div>
+    <div class="header-right">
+      <div class="header-stats">
+        <div class="hstat">
+          <span class="hstat-lbl">Rebob.</span>
+          <span class="hstat-val g" id="stRebobActive">—</span>
+        </div>
+        <div class="hstat">
+          <span class="hstat-lbl">Mesas</span>
+          <span class="hstat-val c" id="stMesasActive">—</span>
+        </div>
+        <div class="hstat">
+          <span class="hstat-lbl">Paradas</span>
+          <span class="hstat-val y" id="stPaused">—</span>
+        </div>
+        <div class="hstat">
+          <span class="hstat-lbl">Inactivas</span>
+          <span class="hstat-val r" id="stInactive">—</span>
+        </div>
+      </div>
+      <div class="live-badge"><div class="live-dot"></div>EN VIVO</div>
+      <div>
+        <div class="clock" id="clock">00:00</div>
+        <div class="date" id="dateDisplay">—</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- REBOBINADORAS: ancho total -->
+  <div class="left-col">
+    <div class="section">
+      <div class="section-label">Rebobinadoras</div>
+      <div id="rebobList"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM LEFT: mesas -->
+  <div class="bottom-row">
+    <div class="section">
+      <div class="section-label">FC-10-05-Control de Embalaje</div>
+      <div id="mesasList"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM RIGHT: plan -->
+  <div class="right-col">
+    <div class="panel-box">
+      <div class="panel-title">Plan de Producción</div>
+      <div class="plan-list" id="planList"></div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-stat">
+      <span class="footer-stat-lbl">Producción teórica hoy</span>
+      <span class="footer-stat-val" id="totalProd">—</span>
+    </div>
+    <div class="footer-right" id="lastUpdate">—</div>
+  </footer>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// CONFIGURACIÓN
+// ═══════════════════════════════════════
+const COMPANY_NAME     = "Alpac SRL";
+const FETCH_FROM_SHEET = true;
+const SHEET_URL        = "https://script.google.com/macros/s/AKfycbzG2ohixVMZU5uHOslqT1LZrnREZ6kZiqj1oxrVv3nBgOWokq5KZ4p_Op6sO1KoT7UG6A/exec";
+const REFRESH_MS       = 15000;
+
+// ═══════════════════════════════════════
+// REBOBINADORAS QUE MIDEN POR ROLLOS/MIN
+// ═══════════════════════════════════════
+const REBOB_RPM = ["RA02", "RA03"];
+
+// ═══════════════════════════════════════
+// MAPA DESCRIPCIÓN → SKU
+// ═══════════════════════════════════════
+const DESC_A_SKU = {
+  "ROLLO 3KG X 60 MTS X 310MM X 55MIC":                        "AL113",
+  "ROLLO BEN 5060 FILM PVC X 30 METROS":                       "FI014",
+  "ROLLO BEN 5053 FILM PVC X 10 MTS":                          "FI015",
+  "ROLLO BEN 5060-E FILM PVC X 30 METROS CON ESTUCHE":         "FI016",
+  "ROLLO ECOBOL FILM PVC 10 MTS":                              "FI018",
+  "ROLLO ECOBOL FILM PVC 25 MTS":                              "FI019",
+  "ROLLO ECOBOL FILM PVC 40 MTS":                              "FI020",
+  "ROLLO PVC 100MTS X 16U":                                    "FI022",
+  "ROLLO EXTRAFILM ALIMENTICIO 15MTS":                         "FI027",
+  "ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS":                   "FI032",
+  "ROLLO BOUQUET PVC 10 MTS":                                  "FI036",
+  "ROLLO ALPAC PAPEL MANTECA 5 MTS":                           "PA020",
+  "ROLLO BEN 5037 MANTECA 5 MTS":                              "PA042",
+  "ROLLO BEN 5037-E MANTECA 5 MTS CON ESTUCHE":                "PA043",
+  "ROLLO ECOBOL MANTECA 5 MTS":                                "PA046",
+  "ROLLO ECOCHEP MANTECA 5 MTS":                               "PA047",
+  "ROLLO ALPAC PAPEL MANTECA 1 KG":                            "PA057",
+  "ROLLO DIA MANTECA 5 MTS":                                   "PA058",
+  "ROLLO BOUQUET MANTECA 5 MTS":                               "PA060",
+  "ROLLO EXTRAFILM MANTECA 5 MTS X 36U":                       "PA061",
+  "ROLLO ALPAC 10 MIC X 280 MM X 10 MTS":                      "RA004",
+  "ROLLO BEN 5002 ALUMINIO 5 MTS":                             "RA014",
+  "ROLLO BEN 5010 ALUMINIO 25 MTS":                            "RA015",
+  "ROLLO ALPAC 10 MIC X 280 MM X 30 MTS":                      "RA018",
+  "ROLLO ALPAC 10 MIC X 280 MM X 4 MTS":                       "RA019",
+  "ROLLO ALPAC 10 MIC X 280 MM X 5 MTS":                       "RA020",
+  "ROLLO ALPAC 18 MIC X 380 MM / 1 KG":                        "RA021",
+  "ROLLO ALPAC 18 MIC X 380 MM / 1 KG ECONOMICO":              "RA022",
+  "ROLLO ALPAC 18 MIC X 380 MM / 1/2 KG":                      "RA023",
+  "ROLLO ALPAC 18 MIC X 380 MM X 100 MTS / 2 KG APROX.":       "RA024",
+  "ROLLO ALUPAQ ALUMINIO 30 MTS":                              "RA025",
+  "ROLLO ALUPAQ ALUMINIO 50 MTS":                              "RA026",
+  "ROLLO BEN 5002-E ALUMINIO 5 MTS CON ESTUCHE":               "RA027",
+  "ROLLO BEN 5005 ALUMINIO 10 MTS":                            "RA028",
+  "ROLLO DIA ALUMINIO 5 MTS":                                  "RA029",
+  "ROLLO BOUQUET ALUMINIO 25MTS":                              "RA030",
+  "ROLLO BOUQUET ALUMINIO 5 MTS":                              "RA031",
+  "ROLLO ECOBOL ALUMINIO 10 MTS":                              "RA032",
+  "ROLLO ECOBOL ALUMINIO 4 MTS":                               "RA033",
+  "ROLLO ECOCHEP ALUMINIO 10 MTS X 380 MM X 15 MIC":           "RA034",
+  "ROLLO ECOCHEP ALUMINIO 4 MTS":                              "RA035",
+  "ROLLO ECOCHEP ALUMINIO 5 MTS":                              "RA036",
+  "ROLLO EXTRAFILM ALUMINIO 4 MTS":                            "RA037",
+  "ROLLO CUYOPLAST 1KG":                                       "RA041",
+  "ROLLO ALUPAQ ALUMINIO 50 MTS X 18 MIC":                     "RA043",
+  "ROLLO EXTRAFILM MANTECA 5 MTS X 48U":                       "PA065",
+  "ROLLO EXTRAFILM MANTECA 1KG":                               "PA062",
+  "ROLLO EXTRAFILM PVC 12MTS":                                 "FI034",
+  "ROLLO EXTRAFILM MANTECA 4 MTS A GRANEL":                    "PA066",
+  "ROLLO FILM ALIMENTICIO":                                    "FI025",
+  "ROLLO FILM PVC 30 X 30":                                    "FI004",
+  "ROLLO FILM PVC 38 X 100":                                   "FI002",
+  "ROLLO FILM PVC 38 X 250":                                   "FI003",
+  "ROLLO FILM PVC 38 X 300":                                   "FI001",
+  "ROLLO FILM PVC 38 X 600":                                   "FI024",
+  "ROLLO FLOPY FILM ALUMINIO 5 MTS":                           "RA039",
+  "ROLLO QUANTUM MANTECA 1KG":                                 "PA067",
+  "ROLLO MAKE ALUMINIO 5 MTS":                                 "RA040",
+  "ROLLO MAKE ALUMINIO 50 MTS":                                "RA042",
+  "ROLLO MAKE MANTECA 5 MTS":                                  "PA045",
+  "ROLLO MAKE MANTECA 50 MTS":                                 "PA059",
+  "ROLLO MAKE PVC 30 MTS":                                     "FI017",
+  "ROLLO MAKE PVC 300 MTS":                                    "FI035",
+  "ROLLO SEPARATA MANTECA 5MTS":                               "PA045",
+  "ROLLO ALUMINIO 3,5MTS":                                     "RO01",
+  "ROLLO ALUMINIO 4MTS":                                       "RO02",
+  "ROLLO ALUMINIO 5MTS":                                       "RO03",
+  "ROLLO ALUMINIO 7,5MTS":                                     "RO04",
+  "ROLLO ALUMINIO 10MTS":                                      "RO05",
+  "ROLLO ALUMINIO 25MTS":                                      "RO06",
+  "ROLLO ALUMINIO 30MTS":                                      "RO07",
+  "ROLLO ALUMINIO 50MTS":                                      "RO08",
+  "ROLLO PVC 10MTS":                                           "RO09",
+  "ROLLO PVC 11MTS":                                           "RO10",
+  "ROLLO PVC 12MTS":                                           "RO11",
+  "ROLLO PVC 30MTS":                                           "RO12",
+  "ROLLO PVC 40MTS":                                           "RO13",
+  "ROLLO MANTECA 4MTS":                                        "RO14",
+  "ROLLO MANTECA 5MTS":                                        "RO15",
+};
+
+function getSku(articulo) {
+  if (!articulo) return null;
+  const key = articulo.trim().toUpperCase();
+  if (DESC_A_SKU[key]) return DESC_A_SKU[key];
+  const found = Object.keys(DESC_A_SKU).find(k => key.includes(k) || k.includes(key));
+  return found ? DESC_A_SKU[found] : null;
+}
+
+// ═══════════════════════════════════════
+// TABLA RPM → rollos/día (RA02, RA03)
+// ═══════════════════════════════════════
+const PRODUCTOS_RPM = {
+  "RO01": { rpm: 34   },
+  "RO02": { rpm: 33   },
+  "RO03": { rpm: 33   },
+  "RO04": { rpm: 31   },
+  "RO05": { rpm: 25   },
+  "RO06": { rpm: 15   },
+  "RO07": { rpm: 3    },
+  "RO08": { rpm: 1.2  },
+  "RO09": { rpm: 23   },
+  "RO10": { rpm: 23   },
+  "RO11": { rpm: 23   },
+  "RO12": { rpm: 14   },
+  "RO13": { rpm: 10   },
+  "RO14": { rpm: 33   },
+  "RO15": { rpm: 33   },
+};
+
+// ═══════════════════════════════════════
+// TABLA CAJAS/DÍA (resto de rebobinadoras)
+// ═══════════════════════════════════════
+const PRODUCTOS_CPD = {
+  "FI002": { cpd: 180 },
+  "FI003": { cpd: 150 },
+  "FI001": { cpd: 110 },
+  "FI024": { cpd: 80  },
+  "RA042": { cpd: 33  },
+  "PA059": { cpd: 40  },
+  "FI035": { cpd: 150 },
+  "FI022": { cpd: 90  },
+  "PA057": { cpd: 40  },
+  "PA062": { cpd: 40  },
+  "PA067": { cpd: 40  },
+  "RA022": { cpd: 40  },
+  "RA023": { cpd: 50  },
+  "RA024": { cpd: 15  },
+  "RA041": { cpd: 33  },
+  "RA021": { cpd: 33  },
+};
+
+function getProduccionRebob(articulo, maquinaId) {
+  if (!articulo) return null;
+  const sku = getSku(articulo);
+  if (!sku) return null;
+  if (REBOB_RPM.includes(maquinaId)) {
+    const p = PRODUCTOS_RPM[sku];
+    if (!p) return null;
+    return { valor: Math.round(p.rpm * 60 * 10), unidad: "rollos / día" };
+  } else {
+    const p = PRODUCTOS_CPD[sku];
+    if (!p) return null;
+    return { valor: p.cpd, unidad: "cajas / día" };
+  }
+}
+
+// ═══════════════════════════════════════
+// RENDIMIENTO → color
+// ═══════════════════════════════════════
+function rendClass(pct) {
+  if (pct === null || pct === undefined) return "none";
+  if (pct >= 70) return "high";
+  if (pct >= 50) return "mid";
+  return "low";
+}
+
+// ═══════════════════════════════════════
+// DEMO DATA
+// ═══════════════════════════════════════
+function getDemoData() {
+  return {
+    empresa: "Alpac SRL",
+    mesRef: "FEB 2026",
+    rebobinadoras: [
+      { id:"RA02", estado:"active",   articulo:"Rollo PVC 30mts",                        operario:"Gabriel P.", horaInicio:"09:49", motivoParada:null,            rendimiento:72 },
+      { id:"RA03", estado:"active",   articulo:"Rollo aluminio 5mts",                    operario:"Julio",      horaInicio:"15:07", motivoParada:null,            rendimiento:55 },
+      { id:"RA04", estado:"active",   articulo:"ROLLO FILM PVC 38 X 250",                operario:"Lorenzo",    horaInicio:"14:02", motivoParada:null,            rendimiento:48 },
+      { id:"RA06", estado:"inactive", articulo:null,                                     operario:null,         horaInicio:null,    motivoParada:"Sin operario",  rendimiento:41 },
+      { id:"RM03", estado:"active",   articulo:"ROLLO ALPAC 18 MIC X 380 MM / 1 KG",    operario:"Santiago",   horaInicio:"14:58", motivoParada:null,            rendimiento:63 },
+      { id:"RM04", estado:"paused",   articulo:"ROLLO ALPAC 18 MIC X 380 MM / 1/2 KG",  operario:"Carlos",     horaInicio:"10:30", motivoParada:"Fin de bobina", rendimiento:38 },
+    ],
+    mesas: [
+      { id:"ME01", estado:"active",   articulo:"ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS", operario:"Pedro",  motivoParada:null,      rendimiento:null },
+      { id:"ME02", estado:"inactive", articulo:null,                                       operario:null,     motivoParada:null,      rendimiento:null },
+      { id:"ME03", estado:"active",   articulo:"ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS", operario:"Miguel", motivoParada:null,      rendimiento:null },
+    ],
+    plan: [
+      { producto:"ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS", fecha:"Hoy" },
+      { producto:"ROLLO FILM PVC 38 X 250",                 fecha:"Hoy" },
+      { producto:"ROLLO ALPAC 18 MIC X 380 MM / 1 KG",      fecha:"Mar 18/03" },
+      { producto:"ROLLO MAKE ALUMINIO 50 MTS",              fecha:"Mié 19/03" },
+      { producto:"ROLLO ECOBOL FILM PVC 25 MTS",            fecha:"Jue 20/03" },
+    ]
+  };
+}
+
+// ═══════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════
+function fmt(n) { return Number(n).toLocaleString("es-AR"); }
+
+function statusLabel(estado, motivo) {
+  if (estado === "active")  return "En curso";
+  if (estado === "paused")  return motivo || "Parada";
+  return motivo || "Inactiva";
+}
+
+function buildRow(m, tipo) {
+  const esMesa   = tipo === "mesa";
+  const esActiva = m.estado === "active";
+
+  // Estado CSS
+  let rowClass = `row-card ${m.estado}`;
+  if (esMesa && esActiva) rowClass = "row-card mesa-active";
+
+  // Nombre a mostrar: descripción completa para todos
+  const nombreProducto = m.articulo || "INACTIVA";
+
+  // Operario / parada
+  let operadorHTML = "";
+  if (esActiva) {
+    operadorHTML = `<div class="op-name">${m.operario||"—"}</div>`;
+    if (!esMesa && m.horaInicio) operadorHTML += `<div class="op-time">Inicio: ${m.horaInicio}</div>`;
+  } else {
+    operadorHTML = `<div class="stop-reason">${m.motivoParada||"Inactiva"}</div>`;
+  }
+
+  // Métrica — solo rebobinadoras
+  let metricaHTML = "";
+  if (!esMesa) {
+    const prod = esActiva ? getProduccionRebob(m.articulo, m.id) : null;
+    metricaHTML = prod
+      ? `<div class="metric-num">${fmt(prod.valor)}</div><div class="metric-label">${prod.unidad}</div>`
+      : `<div class="metric-num" style="font-size:18px;opacity:.2">—</div><div class="metric-label">rollos / día</div>`;
+  }
+
+  // Rendimiento — solo rebobinadoras
+  let rendHTML = "";
+  if (!esMesa) {
+    const rendRaw = m.rendimiento != null
+      ? (m.rendimiento <= 1 ? Math.round(m.rendimiento * 100) : Math.round(m.rendimiento))
+      : null;
+    const rc = rendClass(rendRaw);
+    rendHTML = rendRaw != null
+      ? `<div class="rend-badge ${rc}">${rendRaw}%</div><div class="rend-label">rend. ${window._mesRef||''}</div>`
+      : `<div class="rend-badge none">—</div><div class="rend-label">sin dato</div>`;
+  }
+
+  // Para mesas: grid de 3 columnas (sin métrica ni rendimiento)
+  const gridStyle = esMesa
+    ? 'style="grid-template-columns: 90px 1fr 180px;"'
+    : '';
+
+  return `
+    <div class="${rowClass}" ${gridStyle}>
+      <div class="cell-id">${m.id}</div>
+      <div class="cell-product">${nombreProducto}</div>
+      <div class="cell-operator">${operadorHTML}</div>
+      ${!esMesa ? `<div class="cell-metric">${metricaHTML}</div>` : ''}
+      ${!esMesa ? `<div class="cell-rend">${rendHTML}</div>` : ''}
+    </div>
+  `;
+}
+
+function renderAll(data) {
+  document.getElementById("companyName").textContent = data.empresa || COMPANY_NAME;
+  window._mesRef = data.mesRef || "";
+
+  let nRebobActive=0, nMesasActive=0, nPaused=0, nInactive=0;
+
+  // Rebobinadoras
+  const rebobList = document.getElementById("rebobList");
+  rebobList.innerHTML = (data.rebobinadoras || []).map(m => {
+    if (m.estado==="active")       nRebobActive++;
+    else if (m.estado==="paused")  nPaused++;
+    else                           nInactive++;
+    return buildRow(m, "rebob");
+  }).join("");
+
+  // Mesas
+  const mesasList = document.getElementById("mesasList");
+  mesasList.innerHTML = (data.mesas || []).map(m => {
+    if (m.estado==="active") nMesasActive++;
+    else                     nInactive++;
+
+    // Si hay múltiples productos, generar una fila por producto
+    if (m.estado === "active" && m.articulo && m.articulo.includes("||")) {
+      const productos = m.articulo.split("||");
+      return productos.map((prod, i) => {
+        const mRow = { ...m, articulo: prod, id: i === 0 ? m.id : "" };
+        return buildRow(mRow, "mesa");
+      }).join("");
+    }
+    return buildRow(m, "mesa");
+  }).join("");
+
+  // Stats
+  document.getElementById("stRebobActive").textContent = nRebobActive;
+  document.getElementById("stMesasActive").textContent = nMesasActive;
+  document.getElementById("stPaused").textContent      = nPaused;
+  document.getElementById("stInactive").textContent    = nInactive;
+
+  // Footer prod total (solo rebobinadoras activas)
+  let totalProd = 0;
+  (data.rebobinadoras || []).forEach(m => {
+    if (m.estado === "active") {
+      const p = getProduccionRebob(m.articulo, m.id);
+      if (p) totalProd += p.valor;
+    }
+  });
+  const tcEl = document.getElementById("totalProd");
+  const newVal = fmt(totalProd);
+  if (tcEl.textContent !== newVal) {
+    tcEl.textContent = newVal;
+    tcEl.classList.remove("flash"); void tcEl.offsetWidth; tcEl.classList.add("flash");
+  }
+
+  // Plan
+  const planList = document.getElementById("planList");
+  planList.innerHTML = "";
+  (data.plan||[]).forEach(p => {
+    const row = document.createElement("div");
+    row.className = "plan-row";
+    row.innerHTML = `
+      <div class="plan-product">${p.producto}</div>
+      <div class="plan-fecha">${p.fecha||""}</div>
+    `;
+    planList.appendChild(row);
+  });
+
+  // Last update
+  const now = new Date();
+  document.getElementById("lastUpdate").textContent =
+    `Última actualización: ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
+}
+
+// ═══════════════════════════════════════
+// RELOJ
+// ═══════════════════════════════════════
+function updateClock() {
+  const now = new Date();
+  document.getElementById("clock").textContent =
+    `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+  const days   = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+  const months = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  document.getElementById("dateDisplay").textContent =
+    `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+}
+
+// ═══════════════════════════════════════
+// FETCH
+// ═══════════════════════════════════════
+async function fetchAndRender() {
+  let data;
+  if (FETCH_FROM_SHEET) {
+    try { const r = await fetch(SHEET_URL); data = await r.json(); }
+    catch(e) { console.warn("Sheet no disponible, usando demo"); data = getDemoData(); }
+  } else {
+    data = getDemoData();
+  }
+  renderAll(data);
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+updateClock();
+setInterval(updateClock, 30000);
+fetchAndRender();
+setInterval(fetchAndRender, REFRESH_MS);
+</script>
+</body>
+</html>
