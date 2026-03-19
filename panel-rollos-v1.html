@@ -699,7 +699,7 @@ function buildCard(m, tipo) {
   // Nombre a mostrar: SKU para rebobinadoras, descripción para mesas
   const sku = !esMesa ? getSku(m.articulo) : null;
   const nombreProducto = m.articulo
-    ? (sku || m.articulo)
+    ? m.articulo
     : "INACTIVA";
 
   // Bottom left
