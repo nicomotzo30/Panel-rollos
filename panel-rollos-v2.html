@@ -2,6 +2,8 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<!-- Smart TV: fuerza ancho fijo de 1920px y el TV escala todo proporcionalmente -->
+<meta name="viewport" content="width=1920, initial-scale=1">
 <title>Panel de Producción — Rollos</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -15,8 +17,6 @@
     --green-dim:  #071a0f;
     --red:        #e53935;
     --red-dim:    #1a0707;
-    --yellow:     #f5a623;
-    --yellow-dim: #1a1007;
     --text:       #eef0f8;
     --muted:      #4a5270;
     --accent:     #3d7fff;
@@ -64,17 +64,15 @@
 
   .header-right { display:flex; align-items:center; gap:24px; }
 
-  /* stats en header */
   .header-stats {
     display:flex; align-items:center; gap:16px;
-    border-left:1px solid var(--border); padding-left:24px;
+    border-right:1px solid var(--border); padding-right:20px;
   }
   .hstat { display:flex; align-items:baseline; gap:5px; }
   .hstat-lbl { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); font-weight:600; }
   .hstat-val { font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:800; }
   .hstat-val.g { color:var(--green); }
   .hstat-val.c { color:var(--cyan); }
-  .hstat-val.y { color:var(--yellow); }
   .hstat-val.r { color:var(--red); }
 
   .clock {
@@ -156,17 +154,18 @@
     transition:background .3s;
   }
 
-  .row-card.active   { border-color:var(--green);  background:var(--green-dim); }
-  .row-card.paused   { border-color:var(--yellow); background:var(--yellow-dim); }
-  .row-card.inactive { border-color:var(--red);    background:var(--red-dim); }
-  .row-card.mesa-active { border-color:var(--cyan); background:var(--cyan-dim); }
+  /* ESTADO BINARIO: verde = activa | rojo = todo lo demás */
+  .row-card.active       { border-color:var(--green); background:var(--green-dim); }
+  .row-card.inactive,
+  .row-card.paused       { border-color:var(--red);   background:var(--red-dim); }
+  .row-card.mesa-active  { border-color:var(--cyan);  background:var(--cyan-dim); }
 
   .row-card.active::before      { background:var(--green); }
-  .row-card.paused::before      { background:var(--yellow); }
-  .row-card.inactive::before    { background:var(--red); }
+  .row-card.inactive::before,
+  .row-card.paused::before      { background:var(--red); }
   .row-card.mesa-active::before { background:var(--cyan); }
 
-  /* ── : machine id ── */
+  /* ── cell: machine id ── */
   .cell-id {
     padding:0 8px 0 12px;
     font-family:'Barlow Condensed',sans-serif;
@@ -184,7 +183,8 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     border-left:1px solid rgba(34,40,64,.6);
   }
-  .row-card.inactive .cell-product { color:rgba(238,240,248,.25); font-size:30px; }
+  .row-card.inactive .cell-product,
+  .row-card.paused   .cell-product { color:rgba(238,240,248,.25); font-size:30px; }
 
   /* ── cell: operario + hora ── */
   .cell-operator {
@@ -203,9 +203,8 @@
   .stop-reason {
     font-family:'Barlow Condensed',sans-serif;
     font-size:23px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+    color:var(--red); opacity:.85;
   }
-  .row-card.inactive .stop-reason { color:var(--red); opacity:.8; }
-  .row-card.paused   .stop-reason { color:var(--yellow); opacity:.9; }
 
   /* ── cell: produccion ── */
   .cell-metric {
@@ -219,8 +218,8 @@
   }
   .row-card.active      .metric-num { color:var(--green); }
   .row-card.mesa-active .metric-num { color:var(--cyan); }
-  .row-card.paused      .metric-num { color:var(--yellow); }
-  .row-card.inactive    .metric-num { color:rgba(238,240,248,.15); }
+  .row-card.inactive    .metric-num,
+  .row-card.paused      .metric-num { color:rgba(238,240,248,.15); }
   .metric-label {
     font-size:9px; letter-spacing:2px; text-transform:uppercase;
     color:var(--muted); font-weight:600; text-align:right;
@@ -239,7 +238,7 @@
     font-size:18px; font-weight:800; letter-spacing:1px;
   }
   .rend-badge.high { background:rgba(24,201,93,.15);  color:var(--green); }
-  .rend-badge.mid  { background:rgba(245,166,35,.15); color:var(--yellow); }
+  .rend-badge.mid  { background:rgba(245,166,35,.15); color:#f5a623; }
   .rend-badge.low  { background:rgba(229,57,53,.15);  color:var(--red); }
   .rend-badge.none { background:rgba(255,255,255,.04); color:var(--muted); }
   .rend-label {
@@ -247,12 +246,7 @@
     color:var(--muted); font-weight:600; text-align:right;
   }
 
-  /* ══ RIGHT COLUMN ══ */
-  .right-col {
-    display:flex; flex-direction:column; gap:8px;
-    min-height:0;
-  }
-
+  /* ══ PANEL BOX ══ */
   .panel-box {
     background:var(--surface);
     border:1px solid var(--border);
@@ -292,58 +286,6 @@
     color:var(--accent); text-transform:uppercase; margin-top:2px;
   }
 
-  /* stats box — compacto */
-  .stats-box {
-    background:var(--surface);
-    border:1px solid var(--border);
-    border-radius:5px;
-    padding:10px 14px;
-    display:grid;
-    grid-template-columns: 1fr 1fr;
-    gap:6px 12px;
-    flex-shrink:0;
-  }
-
-  .stats-title {
-    font-family:'Barlow Condensed',sans-serif;
-    font-size:20px; font-weight:700; letter-spacing:4px;
-    text-transform:uppercase; color:var(--muted);
-    grid-column: 1 / -1;
-    padding-bottom:6px;
-    border-bottom:1px solid var(--border);
-  }
-
-  .stat-item { display:flex; align-items:baseline; justify-content:space-between; gap:4px; }
-  .stat-lbl { font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); font-weight:600; }
-  .stat-val {
-    font-family:'Barlow Condensed',sans-serif;
-    font-size:20px; font-weight:800;
-  }
-  .stat-val.g { color:var(--green); }
-  .stat-val.c { color:var(--cyan); }
-  .stat-val.y { color:var(--yellow); }
-  .stat-val.r { color:var(--red); }
-  .stat-val.m { color:var(--muted); font-size:16px; }
-
-  /* stats en header */
-  .header-stats {
-    display:flex; align-items:center; gap:16px;
-    border-right:1px solid var(--border); padding-right:20px;
-  }
-  .hstat { display:flex; align-items:baseline; gap:5px; }
-  .hstat-lbl {
-    font-size:10px; letter-spacing:2px; text-transform:uppercase;
-    color:var(--muted); font-weight:600;
-  }
-  .hstat-val {
-    font-family:'Barlow Condensed',sans-serif;
-    font-size:22px; font-weight:800;
-  }
-  .hstat-val.g { color:var(--green); }
-  .hstat-val.c { color:var(--cyan); }
-  .hstat-val.y { color:var(--yellow); }
-  .hstat-val.r { color:var(--red); }
-
   /* ══ FOOTER ══ */
   footer {
     grid-column:1 / -1;
@@ -372,16 +314,12 @@
     <div class="header-right">
       <div class="header-stats">
         <div class="hstat">
-          <span class="hstat-lbl">Rebob.</span>
+          <span class="hstat-lbl">Rebob. activas</span>
           <span class="hstat-val g" id="stRebobActive">—</span>
         </div>
         <div class="hstat">
-          <span class="hstat-lbl">Mesas</span>
+          <span class="hstat-lbl">Mesas activas</span>
           <span class="hstat-val c" id="stMesasActive">—</span>
-        </div>
-        <div class="hstat">
-          <span class="hstat-lbl">Paradas</span>
-          <span class="hstat-val y" id="stPaused">—</span>
         </div>
         <div class="hstat">
           <span class="hstat-lbl">Inactivas</span>
@@ -559,9 +497,6 @@ const PRODUCTOS_RPM = {
   "RO15": { rpm: 33   },
 };
 
-// ═══════════════════════════════════════
-// TABLA CAJAS/DÍA (resto de rebobinadoras)
-// ═══════════════════════════════════════
 const PRODUCTOS_CPD = {
   "FI002": { cpd: 180 },
   "FI003": { cpd: 150 },
@@ -596,9 +531,6 @@ function getProduccionRebob(articulo, maquinaId) {
   }
 }
 
-// ═══════════════════════════════════════
-// RENDIMIENTO → color
-// ═══════════════════════════════════════
 function rendClass(pct) {
   if (pct === null || pct === undefined) return "none";
   if (pct >= 70) return "high";
@@ -622,16 +554,15 @@ function getDemoData() {
       { id:"RM04", estado:"paused",   articulo:"ROLLO ALPAC 18 MIC X 380 MM / 1/2 KG",  operario:"Carlos",     horaInicio:"10:30", motivoParada:"Fin de bobina", rendimiento:38 },
     ],
     mesas: [
-      { id:"ME01", estado:"active",   articulo:"ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS", operario:"Pedro",  motivoParada:null,      rendimiento:null },
-      { id:"ME02", estado:"inactive", articulo:null,                                       operario:null,     motivoParada:null,      rendimiento:null },
-      { id:"ME03", estado:"active",   articulo:"ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS", operario:"Miguel", motivoParada:null,      rendimiento:null },
+      { id:"ME01", estado:"active",   articulo:"ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS", operario:"Pedro",  motivoParada:null, rendimiento:null },
+      { id:"ME02", estado:"inactive", articulo:null,                                       operario:null,     motivoParada:null, rendimiento:null },
+      { id:"ME03", estado:"active",   articulo:"ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS", operario:"Miguel", motivoParada:null, rendimiento:null },
     ],
     plan: [
       { producto:"ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS", fecha:"Hoy" },
       { producto:"ROLLO FILM PVC 38 X 250",                 fecha:"Hoy" },
       { producto:"ROLLO ALPAC 18 MIC X 380 MM / 1 KG",      fecha:"Mar 18/03" },
       { producto:"ROLLO MAKE ALUMINIO 50 MTS",              fecha:"Mié 19/03" },
-      { producto:"ROLLO ECOBOL FILM PVC 25 MTS",            fecha:"Jue 20/03" },
     ]
   };
 }
@@ -641,33 +572,32 @@ function getDemoData() {
 // ═══════════════════════════════════════
 function fmt(n) { return Number(n).toLocaleString("es-AR"); }
 
-function statusLabel(estado, motivo) {
-  if (estado === "active")  return "En curso";
-  if (estado === "paused")  return motivo || "Parada";
-  return motivo || "Inactiva";
-}
-
 function buildRow(m, tipo) {
   const esMesa   = tipo === "mesa";
   const esActiva = m.estado === "active";
 
-  // Estado CSS
-  let rowClass = `row-card ${m.estado}`;
-  if (esMesa && esActiva) rowClass = "row-card mesa-active";
+  // Estado CSS: binario verde/rojo, excepto mesas activas que usan cyan
+  let rowClass;
+  if (esMesa && esActiva) {
+    rowClass = "row-card mesa-active";
+  } else if (esActiva) {
+    rowClass = "row-card active";
+  } else {
+    // paused e inactive → ambos rojo
+    rowClass = "row-card inactive";
+  }
 
-  // Nombre a mostrar: descripción completa para todos
   const nombreProducto = m.articulo || "INACTIVA";
 
-  // Operario / parada
   let operadorHTML = "";
   if (esActiva) {
     operadorHTML = `<div class="op-name">${m.operario||"—"}</div>`;
     if (!esMesa && m.horaInicio) operadorHTML += `<div class="op-time">Inicio: ${m.horaInicio}</div>`;
   } else {
+    // Motivo de parada siempre en rojo
     operadorHTML = `<div class="stop-reason">${m.motivoParada||"Inactiva"}</div>`;
   }
 
-  // Métrica — solo rebobinadoras
   let metricaHTML = "";
   if (!esMesa) {
     const prod = esActiva ? getProduccionRebob(m.articulo, m.id) : null;
@@ -676,7 +606,6 @@ function buildRow(m, tipo) {
       : `<div class="metric-num" style="font-size:18px;opacity:.2">—</div><div class="metric-label">rollos / día</div>`;
   }
 
-  // Rendimiento — solo rebobinadoras
   let rendHTML = "";
   if (!esMesa) {
     const rendRaw = m.rendimiento != null
@@ -688,10 +617,7 @@ function buildRow(m, tipo) {
       : `<div class="rend-badge none">—</div><div class="rend-label">sin dato</div>`;
   }
 
-  // Para mesas: grid de 3 columnas (sin métrica ni rendimiento)
-  const gridStyle = esMesa
-    ? 'style="grid-template-columns: 90px 1fr 180px;"'
-    : '';
+  const gridStyle = esMesa ? 'style="grid-template-columns: 90px 1fr 180px;"' : '';
 
   return `
     <div class="${rowClass}" ${gridStyle}>
@@ -708,24 +634,22 @@ function renderAll(data) {
   document.getElementById("companyName").textContent = data.empresa || COMPANY_NAME;
   window._mesRef = data.mesRef || "";
 
-  let nRebobActive=0, nMesasActive=0, nPaused=0, nInactive=0;
+  let nRebobActive=0, nMesasActive=0, nInactive=0;
 
   // Rebobinadoras
   const rebobList = document.getElementById("rebobList");
   rebobList.innerHTML = (data.rebobinadoras || []).map(m => {
-    if (m.estado==="active")       nRebobActive++;
-    else if (m.estado==="paused")  nPaused++;
-    else                           nInactive++;
+    if (m.estado === "active") nRebobActive++;
+    else                       nInactive++;
     return buildRow(m, "rebob");
   }).join("");
 
   // Mesas
   const mesasList = document.getElementById("mesasList");
   mesasList.innerHTML = (data.mesas || []).map(m => {
-    if (m.estado==="active") nMesasActive++;
-    else                     nInactive++;
+    if (m.estado === "active") nMesasActive++;
+    else                       nInactive++;
 
-    // Si hay múltiples productos, generar una fila por producto
     if (m.estado === "active" && m.articulo && m.articulo.includes("||")) {
       const productos = m.articulo.split("||");
       return productos.map((prod, i) => {
@@ -736,13 +660,12 @@ function renderAll(data) {
     return buildRow(m, "mesa");
   }).join("");
 
-  // Stats
+  // Stats header (simplificado: Activas + Inactivas)
   document.getElementById("stRebobActive").textContent = nRebobActive;
   document.getElementById("stMesasActive").textContent = nMesasActive;
-  document.getElementById("stPaused").textContent      = nPaused;
   document.getElementById("stInactive").textContent    = nInactive;
 
-  // Footer prod total (solo rebobinadoras activas)
+  // Footer producción total
   let totalProd = 0;
   (data.rebobinadoras || []).forEach(m => {
     if (m.estado === "active") {
@@ -770,7 +693,6 @@ function renderAll(data) {
     planList.appendChild(row);
   });
 
-  // Last update
   const now = new Date();
   document.getElementById("lastUpdate").textContent =
     `Última actualización: ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
