@@ -717,7 +717,7 @@ function updateClock() {
 async function fetchAndRender() {
   let data;
   if (FETCH_FROM_SHEET) {
-    try { const r = await fetch(SHEET_URL); data = await r.json(); }
+    try { const r = await fetch(SHEET_URL + "?t=" + Date.now(), { cache: "no-store" }); data = await r.json(); }
     catch(e) { console.warn("Sheet no disponible, usando demo"); data = getDemoData(); }
   } else {
     data = getDemoData();
