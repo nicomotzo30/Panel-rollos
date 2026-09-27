@@ -34,7 +34,7 @@
   /* ══ ROOT LAYOUT ══ */
   .root {
     display:grid;
-    grid-template-rows: 56px auto 1fr 44px;
+    grid-template-rows: 56px auto 1fr auto 44px;
     grid-template-columns: 1fr 1fr;
     height:100vh;
     padding:10px 12px;
@@ -134,7 +134,7 @@
   /* ══ ROW CARD ══ */
   .row-card {
     display:grid;
-    grid-template-columns: 110px 1fr 160px 140px 100px;
+    grid-template-columns: 110px minmax(0, 1fr) 160px 140px 100px;
     align-items:center;
     gap:0;
     border-radius:4px;
@@ -288,6 +288,7 @@
 
   /* ══ FOOTER ══ */
   footer {
+    grid-row:5;
     grid-column:1 / -1;
     display:flex; align-items:center; justify-content:space-between;
     border-top:1px solid var(--border); padding-top:8px;
@@ -300,6 +301,16 @@
 
   @keyframes numflash { 0%{opacity:.3} 100%{opacity:1} }
   .flash { animation:numflash .35s ease-out; }
+#rebobList, #mesasList { display:flex; flex-direction:column; gap:5px; }
+  .stop-reason { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .row-card.unknown { border-color:#f5a623; background:#211b0b; }
+  .row-card.unknown::before { background:#f5a623; }
+  .row-card.unknown .cell-product { color:#f5a623; font-size:30px; }
+  .row-card.unknown .stop-reason { color:#f5a623; font-size:16px; }
+  #dataWarnings { grid-column:1 / -1; grid-row:4; color:#f5a623; font-size:14px; max-height:38px; overflow:auto; }
+  .plan-list { overflow-y:auto; }
+  .bottom-row { overflow-y:auto; }
 </style>
 </head>
 <body>
@@ -325,8 +336,9 @@
           <span class="hstat-lbl">Inactivas</span>
           <span class="hstat-val r" id="stInactive">—</span>
         </div>
+        <div class="hstat"><span class="hstat-lbl">Revisar</span><span class="hstat-val" style="color:#f5a623" id="stUnknown">—</span></div>
       </div>
-      <div class="live-badge"><div class="live-dot"></div>EN VIVO</div>
+      <div class="live-badge" id="connectionBadge"><div class="live-dot" id="connectionDot"></div><span id="connectionText">CARGANDO</span></div>
       <div>
         <div class="clock" id="clock">00:00</div>
         <div class="date" id="dateDisplay">—</div>
@@ -338,7 +350,7 @@
   <div class="left-col">
     <div class="section">
       <div class="section-label">Rebobinadoras</div>
-      <div id="rebobList"></div>
+      <div id="rebobList"><div class="plan-product">CARGANDO DATOS…</div></div>
     </div>
   </div>
 
@@ -358,10 +370,12 @@
     </div>
   </div>
 
+  <div id="dataWarnings" role="status" hidden></div>
+
   <!-- FOOTER -->
   <footer>
     <div class="footer-stat">
-      <span class="footer-stat-lbl">Producción teórica hoy</span>
+      <span class="footer-stat-lbl">Capacidad de referencia / día</span>
       <span class="footer-stat-val" id="totalProd">—</span>
     </div>
     <div class="footer-right" id="lastUpdate">—</div>
@@ -374,9 +388,14 @@
 // CONFIGURACIÓN
 // ═══════════════════════════════════════
 const COMPANY_NAME     = "Alpac SRL";
-const FETCH_FROM_SHEET = true;
+// No se utilizan datos de demostración ni datos guardados como si fueran actuales.
 const SHEET_URL        = "https://script.google.com/macros/s/AKfycbw5UUfKJlYgBCl5ficSC4ykFcYPszYZdaCW09WH_AkNmcslqrECPR1i_8Rjtl8CTzymkQ/exec";
 const REFRESH_MS       = 15000;
+const REQUEST_TIMEOUT_MS = 12000;
+// PanelRollos.gs entrega porcentajes explícitos. No adivinar escalas antiguas.
+const RENDIMIENTO_FORMATO = "unknown";
+// La tabla original de RA02/RA03 presupone una jornada de diez horas.
+const HORAS_JORNADA_TEORICA = 10;
 
 // ═══════════════════════════════════════
 // REBOBINADORAS QUE MIDEN POR ROLLOS/MIN
@@ -472,8 +491,8 @@ function getSku(articulo) {
   if (!articulo) return null;
   const key = articulo.trim().toUpperCase();
   if (DESC_A_SKU[key]) return DESC_A_SKU[key];
-  const found = Object.keys(DESC_A_SKU).find(k => key.includes(k) || k.includes(key));
-  return found ? DESC_A_SKU[found] : null;
+  return Object.prototype.hasOwnProperty.call(PRODUCTOS_RPM, key) ||
+    Object.prototype.hasOwnProperty.call(PRODUCTOS_CPD, key) ? key : null;
 }
 
 // ═══════════════════════════════════════
@@ -523,7 +542,7 @@ function getProduccionRebob(articulo, maquinaId) {
   if (REBOB_RPM.includes(maquinaId)) {
     const p = PRODUCTOS_RPM[sku];
     if (!p) return null;
-    return { valor: Math.round(p.rpm * 60 * 10), unidad: "rollos / día" };
+    return { valor: Math.round(p.rpm * 60 * HORAS_JORNADA_TEORICA), unidad: "rollos / día" };
   } else {
     const p = PRODUCTOS_CPD[sku];
     if (!p) return null;
@@ -539,37 +558,23 @@ function rendClass(pct) {
 }
 
 // ═══════════════════════════════════════
-// DEMO DATA
-// ═══════════════════════════════════════
-function getDemoData() {
-  return {
-    empresa: "Alpac SRL",
-    mesRef: "FEB 2026",
-    rebobinadoras: [
-      { id:"RA02", estado:"active",   articulo:"Rollo PVC 30mts",                        operario:"Gabriel P.", horaInicio:"09:49", motivoParada:null,            rendimiento:72 },
-      { id:"RA03", estado:"active",   articulo:"Rollo aluminio 5mts",                    operario:"Julio",      horaInicio:"15:07", motivoParada:null,            rendimiento:55 },
-      { id:"RA04", estado:"active",   articulo:"ROLLO FILM PVC 38 X 250",                operario:"Lorenzo",    horaInicio:"14:02", motivoParada:null,            rendimiento:48 },
-      { id:"RA06", estado:"inactive", articulo:null,                                     operario:null,         horaInicio:null,    motivoParada:"Sin operario",  rendimiento:41 },
-      { id:"RM03", estado:"active",   articulo:"ROLLO ALPAC 18 MIC X 380 MM / 1 KG",    operario:"Santiago",   horaInicio:"14:58", motivoParada:null,            rendimiento:63 },
-      { id:"RM04", estado:"paused",   articulo:"ROLLO ALPAC 18 MIC X 380 MM / 1/2 KG",  operario:"Carlos",     horaInicio:"10:30", motivoParada:"Fin de bobina", rendimiento:38 },
-    ],
-    mesas: [
-      { id:"ME01", estado:"active",   articulo:"ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS", operario:"Pedro",  motivoParada:null, rendimiento:null },
-      { id:"ME02", estado:"inactive", articulo:null,                                       operario:null,     motivoParada:null, rendimiento:null },
-      { id:"ME03", estado:"active",   articulo:"ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS", operario:"Miguel", motivoParada:null, rendimiento:null },
-    ],
-    plan: [
-      { producto:"ROLLO DIA FILM PVC AUTOADHERENTE 30 MTS", fecha:"Hoy" },
-      { producto:"ROLLO FILM PVC 38 X 250",                 fecha:"Hoy" },
-      { producto:"ROLLO ALPAC 18 MIC X 380 MM / 1 KG",      fecha:"Mar 18/03" },
-      { producto:"ROLLO MAKE ALUMINIO 50 MTS",              fecha:"Mié 19/03" },
-    ]
-  };
-}
-
-// ═══════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════
+function escapeHTML(value) {
+  return String(value == null ? "" : value).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function rendimientoPorcentaje(value) {
+  if (value == null || String(value).trim() === "") return null;
+  const raw = String(value).trim();
+  const explicitPercent = /%$/.test(raw);
+  const n = Number(raw.replace(/%$/, "").trim().replace(",", "."));
+  if (!Number.isFinite(n) || n < 0) return null;
+  const formato = window._rendimientoFormato || RENDIMIENTO_FORMATO;
+  if (!explicitPercent && !["percent", "fraction"].includes(formato)) return null;
+  const factor = !explicitPercent && formato === "fraction" ? 100 : 1;
+  return Math.round(n * factor);
+}
 function fmt(n) { return Number(n).toLocaleString("es-AR"); }
 
 function buildRow(m, tipo) {
@@ -584,18 +589,19 @@ function buildRow(m, tipo) {
     rowClass = "row-card active";
   } else {
     // paused e inactive → ambos rojo
-    rowClass = "row-card inactive";
+    rowClass = m.estado === "unknown" ? "row-card unknown" : "row-card inactive";
   }
 
-  const nombreProducto = m.articulo || "INACTIVA";
+  const nombreProducto = m.estado === "unknown" ? "SIN DATOS" :
+    (esActiva ? (m.articulo || "PRODUCTO NO INFORMADO") : "INACTIVA");
 
   let operadorHTML = "";
   if (esActiva) {
-    operadorHTML = `<div class="op-name">${m.operario||"—"}</div>`;
-    if (!esMesa && m.horaInicio) operadorHTML += `<div class="op-time">Inicio: ${m.horaInicio}</div>`;
+    operadorHTML = `<div class="op-name">${escapeHTML(m.operario||"—")}</div>`;
+    if (!esMesa && m.horaInicio) operadorHTML += `<div class="op-time">Inicio: ${escapeHTML(m.horaInicio)}</div>`;
   } else {
     // Motivo de parada siempre en rojo
-    operadorHTML = `<div class="stop-reason">${m.motivoParada||"Inactiva"}</div>`;
+    operadorHTML = `<div class="stop-reason">${escapeHTML(m.estado === "unknown" ? (m.motivoParada || "Estado no disponible") : (m.motivoParada||"Inactiva"))}</div>`;
   }
 
   let metricaHTML = "";
@@ -603,26 +609,24 @@ function buildRow(m, tipo) {
     const prod = esActiva ? getProduccionRebob(m.articulo, m.id) : null;
     metricaHTML = prod
       ? `<div class="metric-num">${fmt(prod.valor)}</div><div class="metric-label">${prod.unidad}</div>`
-      : `<div class="metric-num" style="font-size:18px;opacity:.2">—</div><div class="metric-label">rollos / día</div>`;
+      : `<div class="metric-num" style="font-size:18px;opacity:.2">—</div><div class="metric-label">sin cálculo</div>`;
   }
 
   let rendHTML = "";
   if (!esMesa) {
-    const rendRaw = m.rendimiento != null
-      ? (m.rendimiento <= 1 ? Math.round(m.rendimiento * 100) : Math.round(m.rendimiento))
-      : null;
+    const rendRaw = esActiva ? rendimientoPorcentaje(m.rendimiento) : null;
     const rc = rendClass(rendRaw);
     rendHTML = rendRaw != null
-      ? `<div class="rend-badge ${rc}">${rendRaw}%</div><div class="rend-label">rend. ${window._mesRef||''}</div>`
+      ? `<div class="rend-badge ${rc}">${rendRaw}%</div><div class="rend-label">rend. ${escapeHTML(window._mesRef||'')}</div>`
       : `<div class="rend-badge none">—</div><div class="rend-label">sin dato</div>`;
   }
 
-  const gridStyle = esMesa ? 'style="grid-template-columns: 90px 1fr 180px;"' : '';
+  const gridStyle = esMesa ? 'style="grid-template-columns: 90px minmax(0, 1fr) 180px;"' : '';
 
   return `
     <div class="${rowClass}" ${gridStyle}>
-      <div class="cell-id">${m.id}</div>
-      <div class="cell-product">${nombreProducto}</div>
+      <div class="cell-id">${escapeHTML(m.id)}</div>
+      <div class="cell-product">${escapeHTML(nombreProducto)}</div>
       <div class="cell-operator">${operadorHTML}</div>
       ${!esMesa ? `<div class="cell-metric">${metricaHTML}</div>` : ''}
       ${!esMesa ? `<div class="cell-rend">${rendHTML}</div>` : ''}
@@ -633,6 +637,7 @@ function buildRow(m, tipo) {
 function renderAll(data) {
   document.getElementById("companyName").textContent = data.empresa || COMPANY_NAME;
   window._mesRef = data.mesRef || "";
+  window._rendimientoFormato = data.rendimientoFormato || RENDIMIENTO_FORMATO;
 
   let nRebobActive=0, nMesasActive=0, nInactive=0;
 
@@ -640,7 +645,7 @@ function renderAll(data) {
   const rebobList = document.getElementById("rebobList");
   rebobList.innerHTML = (data.rebobinadoras || []).map(m => {
     if (m.estado === "active") nRebobActive++;
-    else                       nInactive++;
+    else if (m.estado !== "unknown") nInactive++;
     return buildRow(m, "rebob");
   }).join("");
 
@@ -648,10 +653,10 @@ function renderAll(data) {
   const mesasList = document.getElementById("mesasList");
   mesasList.innerHTML = (data.mesas || []).map(m => {
     if (m.estado === "active") nMesasActive++;
-    else                       nInactive++;
+    else if (m.estado !== "unknown") nInactive++;
 
     if (m.estado === "active" && m.articulo && m.articulo.includes("||")) {
-      const productos = m.articulo.split("||");
+      const productos = m.articulo.split("||").map(p => p.trim()).filter(Boolean);
       return productos.map((prod, i) => {
         const mRow = { ...m, articulo: prod, id: i === 0 ? m.id : "" };
         return buildRow(mRow, "mesa");
@@ -665,20 +670,25 @@ function renderAll(data) {
   document.getElementById("stMesasActive").textContent = nMesasActive;
   document.getElementById("stInactive").textContent    = nInactive;
 
-  // Footer producción total
-  let totalProd = 0;
-  (data.rebobinadoras || []).forEach(m => {
-    if (m.estado === "active") {
-      const p = getProduccionRebob(m.articulo, m.id);
-      if (p) totalProd += p.valor;
-    }
+  const unknownCount = data.rebobinadoras.concat(data.mesas).filter(m => m.estado === "unknown").length;
+  document.getElementById("stUnknown").textContent = unknownCount;
+  const warnings = document.getElementById("dataWarnings");
+  warnings.textContent = (data.alertas || []).join(" · ");
+  warnings.hidden = !warnings.textContent;
+
+  // Rollos y cajas tienen unidades distintas: nunca se suman entre sí.
+  const totals = {};
+  let missing = 0;
+  data.rebobinadoras.forEach(m => {
+    if (m.estado !== "active") return;
+    const p = getProduccionRebob(m.articulo, m.id);
+    if (p) totals[p.unidad] = (totals[p.unidad] || 0) + p.valor;
+    else missing++;
   });
-  const tcEl = document.getElementById("totalProd");
-  const newVal = fmt(totalProd);
-  if (tcEl.textContent !== newVal) {
-    tcEl.textContent = newVal;
-    tcEl.classList.remove("flash"); void tcEl.offsetWidth; tcEl.classList.add("flash");
-  }
+  const parts = Object.keys(totals).map(unit => fmt(totals[unit]) + " " + unit);
+  if (unknownCount) parts.push("Parcial: hay estados sin confirmar");
+  if (missing) parts.push(missing + " sin referencia");
+  document.getElementById("totalProd").textContent = parts.join(" · ") || "—";
 
   // Plan
   const planList = document.getElementById("planList");
@@ -687,8 +697,8 @@ function renderAll(data) {
     const row = document.createElement("div");
     row.className = "plan-row";
     row.innerHTML = `
-      <div class="plan-product">${p.producto}</div>
-      <div class="plan-fecha">${p.fecha||""}</div>
+      <div class="plan-product">${escapeHTML(p.producto)}</div>
+      <div class="plan-fecha">${escapeHTML(p.fecha||"")}</div>
     `;
     planList.appendChild(row);
   });
@@ -714,24 +724,110 @@ function updateClock() {
 // ═══════════════════════════════════════
 // FETCH
 // ═══════════════════════════════════════
-async function fetchAndRender() {
-  let data;
-  if (FETCH_FROM_SHEET) {
-    try { const r = await fetch(SHEET_URL + "?t=" + Date.now(), { cache: "no-store" }); data = await r.json(); }
-    catch(e) { console.warn("Sheet no disponible, usando demo"); data = getDemoData(); }
-  } else {
-    data = getDemoData();
+let lastGoodData = null;
+let lastSuccess = null;
+let loading = false;
+
+function validateData(data) {
+  if (!data || typeof data !== "object" || data.error ||
+      !Array.isArray(data.rebobinadoras) || !data.rebobinadoras.length ||
+      !Array.isArray(data.mesas) || (data.plan != null && !Array.isArray(data.plan))) {
+    throw new Error("Respuesta de la planilla incompleta o inválida");
   }
-  renderAll(data);
+  const normalize = (list) => {
+    const ids = new Set();
+    return list.map(m => {
+      if (!m || typeof m.id !== "string" || !m.id.trim()) throw new Error("Máquina sin identificador");
+      const id = m.id.trim().toUpperCase();
+      if (ids.has(id)) throw new Error("Máquina repetida: " + id);
+      ids.add(id);
+      ["articulo", "operario", "horaInicio", "motivoParada"].forEach(key => {
+        if (m[key] != null && typeof m[key] !== "string") throw new Error("Campo inválido: " + key);
+      });
+      const state = String(m.estado || "").trim().toLowerCase();
+      const estado = ["active", "inactive", "paused", "unknown"].includes(state) ? state : "unknown";
+      return Object.assign({}, m, { id, estado });
+    });
+  };
+  if (data.alertas != null && (!Array.isArray(data.alertas) || data.alertas.some(a => typeof a !== "string"))) {
+    throw new Error("Avisos del servidor inválidos");
+  }
+  const plan = data.plan || [];
+  plan.forEach(p => {
+    if (!p || typeof p.producto !== "string" || (p.fecha != null && typeof p.fecha !== "string")) {
+      throw new Error("Plan de producción inválido");
+    }
+  });
+  return Object.assign({}, data, { rebobinadoras: normalize(data.rebobinadoras), mesas: normalize(data.mesas), plan });
 }
 
-// ═══════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════
+function connectionStatus(ok, text) {
+  document.getElementById("connectionText").textContent = text;
+  const dot = document.getElementById("connectionDot");
+  dot.style.background = ok ? "var(--green)" : "#f5a623";
+  dot.style.boxShadow = "none";
+  dot.style.animation = ok ? "" : "none";
+}
+
+function showUnavailable(error) {
+  connectionStatus(false, "SIN DATOS ACTUALES");
+  // Conservar solo los identificadores para evitar presentar estados viejos como actuales.
+  [ ["rebobList", "rebobinadoras", "rebob"], ["mesasList", "mesas", "mesa"] ].forEach(item => {
+    const list = lastGoodData ? lastGoodData[item[1]] : [];
+    document.getElementById(item[0]).innerHTML = list.length
+      ? list.map(m => buildRow({ id: m.id, estado: "unknown" }, item[2])).join("")
+      : '<div class="plan-product">SIN DATOS ACTUALES</div>';
+  });
+  ["stRebobActive", "stMesasActive", "stInactive", "stUnknown", "totalProd"].forEach(id => {
+    document.getElementById(id).textContent = "—";
+  });
+  document.getElementById("planList").textContent = "Plan no disponible";
+  document.getElementById("dataWarnings").hidden = true;
+  document.getElementById("lastUpdate").textContent = "Error de conexión o datos. " +
+    (lastSuccess ? "Última lectura válida: " + lastSuccess.toLocaleString("es-AR") : "Sin lectura válida") +
+    " · Reintentando automáticamente";
+  console.error("No se pudo actualizar el panel:", error);
+}
+
+async function fetchAndRender() {
+  if (loading) return;
+  loading = true;
+  let timer;
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  try {
+    const timeout = new Promise((resolve, reject) => {
+      timer = setTimeout(() => {
+        if (controller) controller.abort();
+        reject(new Error("Tiempo de espera agotado"));
+      }, REQUEST_TIMEOUT_MS);
+    });
+    const options = { cache: "no-store" };
+    if (controller) options.signal = controller.signal;
+    const request = fetch(SHEET_URL + (SHEET_URL.includes("?") ? "&" : "?") + "t=" + Date.now(), options)
+      .then(response => {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.json();
+      });
+    const data = validateData(await Promise.race([request, timeout]));
+    renderAll(data);
+    lastGoodData = data;
+    lastSuccess = new Date();
+    const unknown = data.rebobinadoras.concat(data.mesas).some(m => m.estado === "unknown");
+    const hasWarnings = unknown || (data.alertas && data.alertas.length > 0);
+    connectionStatus(!hasWarnings, hasWarnings ? "REVISAR AVISOS" : "CONECTADO");
+  } catch (error) {
+    showUnavailable(error);
+  } finally {
+    clearTimeout(timer);
+    loading = false;
+    setTimeout(fetchAndRender, REFRESH_MS);
+  }
+}
+
 updateClock();
 setInterval(updateClock, 30000);
+connectionStatus(false, "CARGANDO");
 fetchAndRender();
-setInterval(fetchAndRender, REFRESH_MS);
 </script>
 </body>
 </html>
