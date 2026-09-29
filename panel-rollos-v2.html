@@ -304,10 +304,10 @@
 #rebobList, #mesasList { display:flex; flex-direction:column; gap:5px; }
   .stop-reason { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-  .row-card.unknown { border-color:#f5a623; background:#211b0b; }
-  .row-card.unknown::before { background:#f5a623; }
-  .row-card.unknown .cell-product { color:#f5a623; font-size:30px; }
-  .row-card.unknown .stop-reason { color:#f5a623; font-size:16px; }
+  .row-card.unknown { border-color:var(--border); background:var(--surface); }
+  .row-card.unknown::before { background:var(--border); }
+  .row-card.unknown .cell-product { color:var(--text); font-size:30px; }
+  .row-card.unknown .stop-reason { color:var(--muted); font-size:16px; }
   #dataWarnings { grid-column:1 / -1; grid-row:4; color:#f5a623; font-size:14px; max-height:38px; overflow:auto; }
   .plan-list { overflow-y:auto; }
   .bottom-row { overflow-y:auto; }
@@ -391,7 +391,9 @@ const COMPANY_NAME     = "Alpac SRL";
 // No se utilizan datos de demostración ni datos guardados como si fueran actuales.
 const SHEET_URL        = "https://script.google.com/macros/s/AKfycbwa2qy9DJrTKq99hlizvCWn5USCe5hXC8lmT7D19iyDUVIlHWEKYrAiNFOtVPkIYTc/exec";
 const REFRESH_MS       = 15000;
-const REQUEST_TIMEOUT_MS = 12000;
+// La respuesta real tardó 14 segundos; permitir hasta 45 segundos.
+const REQUEST_TIMEOUT_MS = 45000;
+// Conservar la última lectura sin vencimiento; avisar mientras se reintenta.
 // PanelRollos.gs entrega porcentajes explícitos. No adivinar escalas antiguas.
 const RENDIMIENTO_FORMATO = "unknown";
 // La tabla original de RA02/RA03 presupone una jornada de diez horas.
@@ -598,7 +600,7 @@ function buildRow(m, tipo) {
   let operadorHTML = "";
   if (esActiva) {
     operadorHTML = `<div class="op-name">${escapeHTML(m.operario||"—")}</div>`;
-    if (!esMesa && m.horaInicio) operadorHTML += `<div class="op-time">Inicio: ${escapeHTML(m.horaInicio)}</div>`;
+    if (m.horaInicio) operadorHTML += `<div class="op-time">Inicio: ${escapeHTML(m.horaInicio)}</div>`;
   } else {
     // Motivo de parada siempre en rojo
     operadorHTML = `<div class="stop-reason">${escapeHTML(m.estado === "unknown" ? (m.motivoParada || "Estado no disponible") : (m.motivoParada||"Inactiva"))}</div>`;
@@ -655,6 +657,9 @@ function renderAll(data) {
     if (m.estado === "active") nMesasActive++;
     else if (m.estado !== "unknown") nInactive++;
 
+    if (m.estado === "active" && Array.isArray(m.trabajos) && m.trabajos.length) {
+      return m.trabajos.map(job => buildRow({ ...m, ...job }, "mesa")).join("");
+    }
     if (m.estado === "active" && m.articulo && m.articulo.includes("||")) {
       const productos = m.articulo.split("||").map(p => p.trim()).filter(Boolean);
       return productos.map((prod, i) => {
@@ -741,6 +746,12 @@ function validateData(data) {
       const id = m.id.trim().toUpperCase();
       if (ids.has(id)) throw new Error("Máquina repetida: " + id);
       ids.add(id);
+      if (m.trabajos != null && (!Array.isArray(m.trabajos) || m.trabajos.some(t =>
+        !t || typeof t.articulo !== "string" ||
+        (t.operario != null && typeof t.operario !== "string") ||
+        (t.horaInicio != null && typeof t.horaInicio !== "string")))) {
+        throw new Error("Trabajos de embalaje inválidos: " + id);
+      }
       ["articulo", "operario", "horaInicio", "motivoParada"].forEach(key => {
         if (m[key] != null && typeof m[key] !== "string") throw new Error("Campo inválido: " + key);
       });
@@ -769,24 +780,45 @@ function connectionStatus(ok, text) {
   dot.style.animation = ok ? "" : "none";
 }
 
+// Una respuesta sin estado para un equipo no borra su última lectura conocida.
+function preserveKnownStates(data) {
+  const now = new Date().toLocaleString("es-AR");
+  const notices = (data.alertas || []).slice();
+  let retained = false;
+  const result = Object.assign({}, data);
+  ["rebobinadoras", "mesas"].forEach(group => {
+    const previous = lastGoodData ? lastGoodData[group] : [];
+    const incoming = data[group].slice();
+    previous.forEach(old => {
+      if (!incoming.some(m => m.id === old.id)) incoming.push({ id: old.id, estado: "unknown" });
+    });
+    result[group] = incoming.map(m => {
+      if (m.estado !== "unknown") return Object.assign({}, m, { _confirmedAt: now, _stale: false });
+      const old = previous.find(item => item.id === m.id && item.estado !== "unknown");
+      if (!old) return m;
+      retained = true;
+      notices.push(m.id + ": se conserva la lectura de " + (old._confirmedAt || "la última consulta válida") + "; actualización pendiente.");
+      return Object.assign({}, old, { _stale: true });
+    });
+  });
+  result.alertas = notices;
+  result._retained = retained;
+  return result;
+}
+
 function showUnavailable(error) {
-  connectionStatus(false, "SIN DATOS ACTUALES");
-  // Conservar solo los identificadores para evitar presentar estados viejos como actuales.
-  [ ["rebobList", "rebobinadoras", "rebob"], ["mesasList", "mesas", "mesa"] ].forEach(item => {
-    const list = lastGoodData ? lastGoodData[item[1]] : [];
-    document.getElementById(item[0]).innerHTML = list.length
-      ? list.map(m => buildRow({ id: m.id, estado: "unknown" }, item[2])).join("")
-      : '<div class="plan-product">SIN DATOS ACTUALES</div>';
-  });
-  ["stRebobActive", "stMesasActive", "stInactive", "stUnknown", "totalProd"].forEach(id => {
-    document.getElementById(id).textContent = "—";
-  });
-  document.getElementById("planList").textContent = "Plan no disponible";
-  document.getElementById("dataWarnings").hidden = true;
-  document.getElementById("lastUpdate").textContent = "Error de conexión o datos. " +
-    (lastSuccess ? "Última lectura válida: " + lastSuccess.toLocaleString("es-AR") : "Sin lectura válida") +
-    " · Reintentando automáticamente";
-  console.error("No se pudo actualizar el panel:", error);
+  const detail = error && error.message ? error.message : "No se pudo completar la consulta";
+  connectionStatus(false, lastGoodData ? "ACTUALIZACIÓN PENDIENTE" : "CONECTANDO");
+  // No cambiar filas, productos, operadores, contadores ni plan ante una falla.
+  const warnings = document.getElementById("dataWarnings");
+  warnings.hidden = false;
+  warnings.textContent = lastGoodData
+    ? "Se conserva la última información recibida; los estados pueden haber cambiado. Reintentando automáticamente. " + (lastGoodData.alertas || []).join(" · ")
+    : "Esperando la primera lectura. Reintentando automáticamente.";
+  document.getElementById("lastUpdate").textContent = lastSuccess
+    ? "Última consulta correcta: " + lastSuccess.toLocaleString("es-AR")
+    : "Todavía no se recibió una lectura";
+  console.error("Actualización pendiente:", detail);
 }
 
 async function fetchAndRender() {
@@ -806,15 +838,17 @@ async function fetchAndRender() {
     const request = fetch(SHEET_URL + (SHEET_URL.includes("?") ? "&" : "?") + "t=" + Date.now(), options)
       .then(response => {
         if (!response.ok) throw new Error("HTTP " + response.status);
+        const type = response.headers.get("content-type") || "";
+        if (!type.includes("application/json")) throw new Error("Google devolvió una página en lugar de datos; revisar permisos e implementación.");
         return response.json();
       });
-    const data = validateData(await Promise.race([request, timeout]));
+    const data = preserveKnownStates(validateData(await Promise.race([request, timeout])));
     renderAll(data);
     lastGoodData = data;
     lastSuccess = new Date();
     const unknown = data.rebobinadoras.concat(data.mesas).some(m => m.estado === "unknown");
     const hasWarnings = unknown || (data.alertas && data.alertas.length > 0);
-    connectionStatus(!hasWarnings, hasWarnings ? "REVISAR AVISOS" : "CONECTADO");
+    connectionStatus(!hasWarnings, data._retained ? "ACTUALIZACIÓN PARCIAL" : (hasWarnings ? "REVISAR AVISOS" : "CONECTADO"));
   } catch (error) {
     showUnavailable(error);
   } finally {
